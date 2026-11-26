@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Client de la création de fiches assistée (boutique Plaine Altitude). Appelé par la skill « fiche-produit » de Claude Code.
-// Réglages : fichier .pa-fiches.json dans le dossier personnel (site, compte, mot de passe d'application). Jamais affichés.
+// Réglages : fichier .pa-fiches.json dans le dossier personnel (compte, mot de passe d'application ; « site » seulement pour un
+// site d'essai, la boutique en production par défaut). Jamais affichés.
 //
 //   node client.mjs verifier                               teste la connexion et les droits
 //   node client.mjs referentiel <famille> [fichier]        enregistre le référentiel (défaut : referentiel-<famille>.json)
@@ -24,12 +25,17 @@ import { join, basename, resolve, dirname } from 'node:path';
 import { spawn } from 'node:child_process';
 
 const REGLAGES = join(homedir(), '.pa-fiches.json');
+// Les brouillons partent sur la boutique en production (demande de Bastien du 2026-11-27). « site » dans les réglages ne sert
+// qu'aux essais de Bastien sur le site de développement.
+const PRODUCTION = 'https://boutique.plaine-altitude.com';
 function reglages() {
   if (!existsSync(REGLAGES)) sortir(`Réglages absents : créer ${REGLAGES} (voir INSTALLATION.md).`);
   const r = JSON.parse(readFileSync(REGLAGES, 'utf8'));
-  for (const k of ['site', 'compte', 'mot_de_passe_application']) if (!r[k]) sortir(`Réglage « ${k} » manquant dans ${REGLAGES}.`);
+  r.site = (r.site || PRODUCTION).replace(/\/$/, '');
+  for (const k of ['compte', 'mot_de_passe_application']) if (!r[k]) sortir(`Réglage « ${k} » manquant dans ${REGLAGES}.`);
   return r;
 }
+const nomSite = () => { const s = reglages().site; return s === PRODUCTION ? `boutique en production (${s})` : `site d'ESSAI, pas la production (${s})`; };
 // Arrêt : code de sortie posé, puis fin sans process.exit (qui plante Node sous Windows après un fetch)
 class Arret extends Error {}
 function sortir(msg, code = 1) { console.error(msg); process.exitCode = code; throw new Arret(msg); }
@@ -95,7 +101,7 @@ const positions = args.filter(a => !a.startsWith('--'));
 if (commande === 'verifier') {
   const { statut, donnees } = await api('GET', 'referentiel');
   if (statut !== 200) sortir(`Échec (${statut}) : ${donnees.message || JSON.stringify(donnees)}`);
-  console.log(`Connexion correcte : ${donnees.categories.length} catégories, ${donnees.marques.length} marques.`);
+  console.log(`Connexion correcte à la ${nomSite()} : ${donnees.categories.length} catégories, ${donnees.marques.length} marques.`);
 } else if (commande === 'referentiel') {
   const famille = positions[0] || '';
   const fichier = positions[1] || `referentiel-${famille || 'general'}.json`;
@@ -180,7 +186,7 @@ if (commande === 'verifier') {
   writeFileSync(resolve(dirname(resolve(chemin)), essai ? 'rapport-essai.json' : 'rapport-envoi.json'), JSON.stringify(donnees, null, 1));
   if (statut === 200 && donnees.id) { fiche.brouillon_id = donnees.id; writeFileSync(chemin, JSON.stringify(fiche, null, 1)); }
   console.log(JSON.stringify(donnees, null, 1));
-  if (statut === 200 && donnees.id) console.log(`\nBrouillon ${donnees.id}${brouillon_id ? ` (remplace ${brouillon_id})` : ''}\nAperçu : ${donnees.apercu}\nÉdition : ${donnees.edition}`);
+  if (statut === 200 && donnees.id) console.log(`\nBrouillon ${donnees.id}${brouillon_id ? ` (remplace ${brouillon_id})` : ''} sur la ${nomSite()}\nAperçu : ${donnees.apercu}\nÉdition : ${donnees.edition}`);
   if (statut !== 200) process.exitCode = 1;   // pas de process.exit après fetch : plantage de Node sous Windows
 } else if (commande === 'publier') {
   const chemin = positions[0];
@@ -191,7 +197,7 @@ if (commande === 'verifier') {
   if (statut !== 200) sortir(`Publication refusée (${statut}) : ${donnees.message || ''}`);
   fiche.publie_id = fiche.brouillon_id; delete fiche.brouillon_id;
   writeFileSync(chemin, JSON.stringify(fiche, null, 1));
-  console.log(`Publiée : ${donnees.lien}\nÉdition : ${donnees.edition}`);
+  console.log(`Publiée sur la ${nomSite()} : ${donnees.lien}\nÉdition : ${donnees.edition}`);
 } else {
   sortir('Commandes : verifier, referentiel, doublons, planche, coloris, envoyer, publier (voir l\'en-tête de client.mjs).');
 }

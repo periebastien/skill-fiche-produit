@@ -29,7 +29,8 @@ un dossier par produit (`Documents/fiches/<marque>-<modele>/`) : `fiche.json`, `
 ### 1. Source et famille
 Une adresse de page, un PDF (chemin sur le poste), ou les deux. Famille : parapente, sellette, secours, casque, sac, electronique,
 accessoire (demande-la si elle n'est pas évidente). Packs et bons cadeaux : refuser, ils se font à la main.
-Première fois de la séance : `node client.mjs verifier` (échec : voir `INSTALLATION.md`).
+Première fois de la séance : `node client.mjs verifier` (échec : voir `INSTALLATION.md`). Il dit sur quel site partent les
+brouillons : la boutique en production, sauf réglage d'essai ; dans ce cas, dis-le à l'utilisateur.
 
 ### 2. Existant : doublon et anciens modèles
 `node client.mjs doublons "<marque>" "<modele>" <famille>`.

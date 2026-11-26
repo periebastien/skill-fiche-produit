@@ -3,9 +3,8 @@
 1. **Claude Code** installé sur le poste (application Claude, onglet Code, ou en ligne de commande), avec un abonnement Claude.
    Node.js 18 ou plus récent pour `client.mjs` : si `node -v` ne répond pas dans un terminal, l'installer depuis https://nodejs.org (version LTS).
    Git pour Windows : si `git --version` ne répond pas, l'installer depuis https://git-scm.com/download/win (réglages par défaut).
-2. **Accès au dépôt** : le dépôt https://github.com/periebastien/skill-fiche-produit est privé. Bastien invite le compte GitHub de
-   la personne (Settings > Collaborators > Add people), qui accepte l'invitation reçue par e-mail.
-3. **La skill**, dans PowerShell (à la première commande, Git ouvre le navigateur pour se connecter à GitHub) :
+2. **Le dépôt** https://github.com/periebastien/skill-fiche-produit est public : pas besoin de compte GitHub.
+3. **La skill**, dans PowerShell :
 
    ```powershell
    git clone https://github.com/periebastien/skill-fiche-produit.git "$env:USERPROFILE\.claude\skills\fiche-produit"
@@ -27,7 +26,11 @@
 6. **Le fichier de réglages** `C:\Users\<compte>\.pa-fiches.json` (jamais ailleurs, jamais envoyé, jamais dans le dépôt) :
 
    ```json
-   { "site": "https://boutique.plaine-altitude.com", "compte": "fiches-timothee", "mot_de_passe_application": "xxxx xxxx xxxx xxxx xxxx xxxx" }
+   { "compte": "fiches-timothee", "mot_de_passe_application": "xxxx xxxx xxxx xxxx xxxx xxxx" }
    ```
 
-7. **Vérifier** : demander à Claude « vérifie la connexion à la boutique » (il lance `node client.mjs verifier`).
+   Les brouillons partent sur la boutique en production (https://boutique.plaine-altitude.com). La ligne `"site"` ne sert qu'aux
+   essais de Bastien sur le site de développement (`"site": "https://boutique.cogitoweb.net"`) : sans elle, c'est la production.
+
+7. **Vérifier** : demander à Claude « vérifie la connexion à la boutique » (il lance `node client.mjs verifier`). La réponse doit
+   dire « Connexion correcte à la boutique en production ».
