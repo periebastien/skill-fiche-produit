@@ -6,14 +6,17 @@
 //   node client.mjs referentiel <famille> [fichier]        enregistre le référentiel (défaut : referentiel-<famille>.json)
 //   node client.mjs doublons "<marque>" "<modele>" [famille]
 //   node client.mjs planche <photos.txt> [titre]           page numérotée des photos trouvées (une adresse ou un fichier par
-//                                                          ligne, puis une note facultative), ouverte dans le navigateur
-//   node client.mjs coloris <coloris.json> [famille]       analyse les photos des coloris (couleurs dominantes) et ouvre la
-//                                                          page de validation des pastilles (nom, couleurs, pastille)
-//   node client.mjs apercu <fiche.json>                    aperçu complet de la fiche (vente, photos, textes, grille), ouvert
+//                                                          ligne, puis une note facultative)
+//   node client.mjs coloris <coloris.json> [famille]       analyse les photos des coloris (couleurs dominantes) ; page de
+//                                                          validation des pastilles dès que chaque coloris a ses « couleurs »
 //   node client.mjs envoyer <fiche.json> [--essai] [--confirmer-nouveaux] [--forcer-doublon]
+//   node client.mjs publier <fiche.json>                   publie le brouillon de fiche.json (après accord de l'utilisateur)
 //
+// Pages locales (planche, coloris) : ouvertes une seule fois dans le navigateur, puis rechargées d'elles-mêmes quand la commande
+// est relancée (pas de nouvel onglet).
 // « envoyer » sans --essai envoie d'abord les images et documents pas encore reçus (une requête par fichier), note leur
-// identifiant dans fiche.json (une relance ne les renvoie pas), puis crée le brouillon. Le rapport du serveur est gardé dans
+// identifiant dans fiche.json (une relance ne les renvoie pas), puis crée le brouillon et note son identifiant (« brouillon_id »).
+// Relancé après des corrections, il remplace ce brouillon par la nouvelle version. Le rapport du serveur est gardé dans
 // rapport-essai.json ou rapport-envoi.json, à côté de fiche.json. Code de sortie 1 si le serveur refuse.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -66,6 +69,16 @@ function pastilleHtml(cs, voile) {
   if (voile && cs.length > 1) return `<div class="pastille" style="background:linear-gradient(${cs.map((x, i) => `${x} ${(i * 100 / cs.length).toFixed(1)}% ${((i + 1) * 100 / cs.length).toFixed(1)}%`).join(',')})"></div>`;
   return `<div class="pastille rond" style="background:${cs[1] ? `linear-gradient(135deg,${cs[0]} 50%,${cs[1]} 50%)` : cs[0]}"></div>`;
 }
+// Écrit une page locale qui se recharge seule quand elle est réécrite (fichier <nom>-version.js), et ne l'ouvre qu'une fois
+function pageLocale(sortie, html, afficher = true) {
+  const version = sortie.replace(/\.html$/, '-version.js');
+  const nom = basename(version);
+  const veille = `<script>setInterval(()=>{const s=document.createElement('script');s.src='${nom}?'+Date.now();s.onload=()=>{if(window.__v0===undefined)window.__v0=window.__v;else if(window.__v!==window.__v0)location.reload();s.remove()};document.head.appendChild(s)},2000)</script>`;
+  writeFileSync(sortie, html.replace('</html>', veille + '</html>'));
+  writeFileSync(version, `window.__v=${Date.now()};`);
+  const marque = sortie + '.ouverte';
+  if (afficher && !existsSync(marque)) { writeFileSync(marque, ''); ouvrir(sortie); }
+}
 function ouvrir(fichier) {
   if (process.env.PA_FICHES_SANS_OUVRIR) return;   // essais automatiques : pas de fenêtre
   const [cmd, args] = process.platform === 'win32' ? ['cmd', ['/c', 'start', '', fichier]] : [process.platform === 'darwin' ? 'open' : 'xdg-open', [fichier]];
@@ -102,8 +115,7 @@ if (commande === 'verifier') {
     return `<figure><b>${i + 1}</b><img src="${esc(source(adresse, base))}" loading="lazy" onload="this.nextElementSibling.textContent=this.naturalWidth+' x '+this.naturalHeight+' px'+(Math.max(this.naturalWidth,this.naturalHeight)<800?' : petite, floue en grand':'')"><figcaption>chargement…</figcaption>${note.length ? `<small>${esc(note.join(' '))}</small>` : ''}</figure>`;
   }).join('');
   const sortie = resolve(base, 'planche.html');
-  writeFileSync(sortie, page(positions[1] || 'Photos trouvées', `<p>Notez les numéros à garder, dans l'ordre voulu (la première sera l'image principale), et celles à mettre dans la description.</p><div class="planche">${cartes}</div>`));
-  ouvrir(sortie);
+  pageLocale(sortie, page(positions[1] || 'Photos trouvées', `<p>Notez les numéros à garder, dans l'ordre voulu (la première sera l'image principale), et celles à mettre dans la description.</p><div class="planche">${cartes}</div>`));
   console.log(`Planche de ${lignes.length} photos : ${sortie}`);
 } else if (commande === 'coloris') {
   // coloris.json : [{ "nom": "Lou", "code": "LOU", "image": "<photo du coloris chez le fabricant>", "couleurs": ["#…"] }]
@@ -127,53 +139,14 @@ if (commande === 'verifier') {
     <td>${(c.proposees || []).map(x => `<span class="ech" style="background:${esc(x.hex)}"></span>${esc(x.hex)} ${x.part} %`).join('<br>')}</td>
     <td>${pastille(c.couleurs, famille === 'parapente')}<small>${esc((c.couleurs || []).join(' · ') || 'à choisir')}</small></td></tr>`).join('');
   const sortie = resolve(base, 'coloris.html');
-  writeFileSync(sortie, page('Coloris à valider', `<style>td img{width:180px;aspect-ratio:4/3;object-fit:contain;background:#fff}.pastille{width:64px;height:64px;border-radius:12px;border:1px solid #ccc;margin-bottom:4px}.pastille.rond{border-radius:50%}.vide{display:grid;place-items:center}.ech{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:6px;vertical-align:middle;border:1px solid #ccc}td{vertical-align:middle}</style>
+  const html = page('Coloris à valider', `<style>td img{width:180px;aspect-ratio:4/3;object-fit:contain;background:#fff}.pastille{width:64px;height:64px;border-radius:12px;border:1px solid #ccc;margin-bottom:4px}.pastille.rond{border-radius:50%}.vide{display:grid;place-items:center}.ech{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:6px;vertical-align:middle;border:1px solid #ccc}td{vertical-align:middle}</style>
     <p>Pour chaque coloris : la photo du fabricant, les couleurs relevées sur la photo (part de la surface), et la pastille proposée telle qu'elle apparaîtra sur la fiche${famille === 'parapente' ? ' (étiquette à bandes, couleur principale en haut)' : ''}. Vérifiez le nom et les couleurs.</p>
-    <table><tr><th></th><th>Photo</th><th>Nom</th><th>Couleurs relevées</th><th>Pastille</th></tr>${lignes}</table>`));
-  ouvrir(sortie);
-  console.log(`${liste.length} coloris : ${sortie}`);
+    <table><tr><th></th><th>Photo</th><th>Nom</th><th>Couleurs relevées</th><th>Pastille</th></tr>${lignes}</table>`);
+  // Page montrée seulement quand chaque coloris a ses couleurs retenues (pas de page de pastilles vides)
+  const pret = liste.every(c => (c.couleurs || []).length);
+  pageLocale(sortie, html, pret);
+  console.log(pret ? `${liste.length} coloris, page de validation : ${sortie}` : `${liste.length} coloris analysés : choisir les « couleurs » de chacun, puis relancer (la page s'ouvrira alors).`);
   for (const c of liste) console.log(`- ${c.nom} : relevées ${(c.proposees || []).slice(0, 5).map(x => x.hex + ' ' + x.part + '%').join(', ') || 'aucune'} ; retenues ${(c.couleurs || []).join(' ') || 'à choisir'}`);
-} else if (commande === 'apercu') {
-  const chemin = positions[0];
-  if (!chemin || !existsSync(chemin)) sortir('Usage : apercu <fiche.json>');
-  const base = dirname(resolve(chemin));
-  const f = JSON.parse(readFileSync(chemin, 'utf8'));
-  const srcImg = im => source(im.url || im.fichier || '', base);
-  const desc = String(f.description || '').replace(/\{\{image:(\d+)\}\}/g, (_, n) => { const im = (f.images || [])[n - 1]; return im ? `<img class="desc" src="${esc(srcImg(im))}">` : `<b>[image ${n} introuvable]</b>`; });
-  const role = { description: 'Description seulement', les_deux: 'Galerie et description' };
-  const photos = (f.images || []).map((im, i) => `<figure><b>${i + 1}</b><img src="${esc(srcImg(im))}"><figcaption>${i === 0 ? 'Image principale' : (role[im.role] || 'Galerie')}${im.coloris ? ' · ' + esc(im.coloris) : ''}</figcaption></figure>`).join('');
-  const v = f.vente || {};
-  const dec = f.declinaisons || {};
-  const tailles = dec.tailles || [];
-  const prix = t => (v.prix_par_taille && v.prix_par_taille[t]) || v.prix || '<i>à saisir</i>';
-  const dispo = { stock: 'En stock', commande: 'Sur commande' + (v.delai ? ' : ' + esc(v.delai) : ''), bientot: 'Bientôt disponible' + (v.date_arrivee ? ' (' + esc(v.date_arrivee) + ')' : ''), rupture: 'Ni stock ni commande' }[v.disponibilite || 'commande'];
-  const vente = `<table><tr><th>Taille</th><th>Prix TTC</th></tr>${(tailles.length ? tailles : ['Prix unique']).map(t => `<tr><td>${esc(t)}</td><td>${prix(t)} €</td></tr>`).join('')}</table>
-    <div class="coloris">${(dec.coloris || []).map(c => `<span>${pastilleHtml(c.couleurs, f.famille === 'parapente')}${esc(c.nom || c)}</span>`).join('')}</div>
-    <p>${dispo} · Tarif public conseillé : ${v.tarif_conseille === false ? 'non' : 'oui'} · Demande de devis : ${v.demande_devis === false ? 'non' : 'oui'}${v.remise_pack ? ' · Remise en pack : ' + esc(v.remise_pack) + ' %' : ''}</p>
-    ${(v.stock || []).length ? '<p>Stock : ' + v.stock.map(s => `${esc(s.taille)} ${esc(s.coloris)} : ${esc(s.quantite)}`).join(', ') + '</p>' : ''}
-    ${f.remplace && (f.remplace.produits || []).length ? `<p>Remplace les fiches ${esc(f.remplace.produits.join(', '))} (lien « Nouveau modèle » posé à la publication)${(f.remplace.ancien_modele || []).length ? ' ; passées « plus en vente » : ' + esc(f.remplace.ancien_modele.join(', ')) : ''}</p>` : ''}`;
-  const t = f.tech || {};
-  const nb = (t.tailles || []).length || 1;
-  // Libellés des caractéristiques : référentiel de la famille s'il est dans le dossier du produit
-  let carac = {};
-  try { carac = JSON.parse(readFileSync(resolve(base, `referentiel-${f.famille}.json`), 'utf8')).caracteristiques || {}; } catch { /* clés brutes */ }
-  const tech = `<table><tr><th></th>${(t.tailles || []).map(x => `<th>${esc(x)}</th>`).join('')}</tr>${(t.lignes || []).map(l => `<tr><th>${esc(l.libelle || carac[l.carac] || l.carac)}</th>${(l.valeurs || []).length === 1 ? `<td colspan="${nb}">${esc(l.valeurs[0])}</td>` : (l.valeurs || []).map(x => `<td>${esc(x)}</td>`).join('')}</tr>`).join('')}</table>${(t.autres || []).map(a => `<p>${esc(a.libelle)} : ${esc(a.valeur)}</p>`).join('')}`;
-  const liste = (titre, el) => el && el.length ? `<h2>${titre}</h2><ul>${el.join('')}</ul>` : '';
-  const corps = `<p class="meta">${esc(f.famille)} · ${esc(f.marque)} · catégories ${esc((f.categories || []).join(', '))}</p>
-    <div class="resume">${f.resume || ''}</div>
-    <h2>Vente</h2>${vente}
-    <h2>Photos, dans l'ordre</h2><div class="planche">${photos}</div>
-    <h2>Description (${String(f.description || '').replace(/<[^>]+>/g, '').length} caractères)</h2><div class="description">${desc}</div>
-    ${liste('Livré avec', (f.livre_avec || []).map(l => `<li>${esc(l.element)}${l.detail ? ' : ' + esc(l.detail) : ''}</li>`))}
-    ${liste('Questions fréquentes', (f.faq || []).map(q => `<li><b>${esc(q.question)}</b><br>${esc(q.reponse)}</li>`))}
-    ${liste('Vidéos', (f.videos || []).map(x => `<li>${esc(x.titre)} ${esc(x.lien)}</li>`))}
-    ${liste('Documents', (f.documents || []).map(x => `<li>${esc(x.titre)} ${esc(x.url || x.fichier)}</li>`))}
-    <h2>Données techniques</h2>${tech}
-    <h2>Référencement</h2><p><b>${esc(f.meta_titre)}</b> (${(f.meta_titre || '').length} car.)<br>${esc(f.meta_description)} (${(f.meta_description || '').length} car.)</p>`;
-  const sortie = resolve(base, 'apercu.html');
-  writeFileSync(sortie, page(f.nom || 'Aperçu', corps));
-  ouvrir(sortie);
-  console.log(`Aperçu : ${sortie}`);
 } else if (commande === 'envoyer') {
   const chemin = positions[0];
   if (!chemin || !existsSync(chemin)) sortir('Usage : envoyer <fiche.json> [--essai] [--confirmer-nouveaux] [--forcer-doublon]');
@@ -197,11 +170,25 @@ if (commande === 'verifier') {
     for (const [i, im] of (fiche.images || []).entries()) await envoyer(im, { coloris: im.coloris || '', rang: i + 1 }, `Image ${i + 1} (${im.url ? basename(new URL(im.url).pathname) : im.fichier})`);
     for (const [i, doc] of (fiche.documents || []).entries()) await envoyer(doc, { type: 'document', titre: doc.titre || '' }, `Document ${i + 1} (${doc.titre || ''})`);
   }
-  const corps = { ...fiche, essai, confirmer_nouveaux: options.has('--confirmer-nouveaux'), forcer_doublon: options.has('--forcer-doublon') };
+  const { brouillon_id, publie_id, ...donneesFiche } = fiche;
+  if (publie_id && !brouillon_id) sortir(`Cette fiche est déjà publiée (produit ${publie_id}) : les corrections se font maintenant dans l'administration.`);
+  const corps = { ...donneesFiche, essai, confirmer_nouveaux: options.has('--confirmer-nouveaux'), forcer_doublon: options.has('--forcer-doublon'), ...(brouillon_id ? { remplacer: brouillon_id } : {}) };
   const { statut, donnees } = await api('POST', 'brouillon', corps);
   writeFileSync(resolve(dirname(resolve(chemin)), essai ? 'rapport-essai.json' : 'rapport-envoi.json'), JSON.stringify(donnees, null, 1));
+  if (statut === 200 && donnees.id) { fiche.brouillon_id = donnees.id; writeFileSync(chemin, JSON.stringify(fiche, null, 1)); }
   console.log(JSON.stringify(donnees, null, 1));
+  if (statut === 200 && donnees.id) console.log(`\nBrouillon ${donnees.id}${brouillon_id ? ` (remplace ${brouillon_id})` : ''}\nAperçu : ${donnees.apercu}\nÉdition : ${donnees.edition}`);
   if (statut !== 200) process.exit(1);
+} else if (commande === 'publier') {
+  const chemin = positions[0];
+  if (!chemin || !existsSync(chemin)) sortir('Usage : publier <fiche.json>');
+  const fiche = JSON.parse(readFileSync(chemin, 'utf8'));
+  if (!fiche.brouillon_id) sortir("Pas de brouillon dans fiche.json : l'envoyer d'abord.");
+  const { statut, donnees } = await api('POST', 'publier', { id: fiche.brouillon_id });
+  if (statut !== 200) sortir(`Publication refusée (${statut}) : ${donnees.message || ''}`);
+  fiche.publie_id = fiche.brouillon_id; delete fiche.brouillon_id;
+  writeFileSync(chemin, JSON.stringify(fiche, null, 1));
+  console.log(`Publiée : ${donnees.lien}\nÉdition : ${donnees.edition}`);
 } else {
-  sortir('Commandes : verifier, referentiel, doublons, planche, apercu, envoyer (voir l\'en-tête de client.mjs).');
+  sortir('Commandes : verifier, referentiel, doublons, planche, coloris, envoyer, publier (voir l\'en-tête de client.mjs).');
 }

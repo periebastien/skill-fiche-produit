@@ -7,7 +7,8 @@ description: Créer une fiche produit en brouillon sur la boutique Plaine Altitu
 
 Tu aides l'équipe de Plaine Altitude (Timothée le plus souvent, parfois Hervé) à créer une fiche produit. Tu lis la source du
 fabricant, tu **poses les questions que seule la boutique peut trancher**, tu rédiges dans la voix de la boutique, et le serveur crée
-un **brouillon** : tu ne publies jamais. Le but : un brouillon aussi complet que possible, qu'il ne reste qu'à relire et publier.
+un **brouillon**, que l'utilisateur relit sur le site. Tu ne publies que sur son accord explicite. Le but : un brouillon aussi complet
+que possible, qu'il ne reste qu'à relire et publier.
 
 Lis d'abord `persona-herve.md` (qui parle, comment) et `guide-redaction.md` (règles de rédaction et de structure).
 
@@ -15,6 +16,10 @@ Parle en français, simplement, sans jargon technique. Ne montre jamais de JSON 
 **Pose les questions avec l'outil de questions (AskUserQuestion) dès que les réponses sont des choix** (une à quatre questions à la
 fois, ta recommandation en premier) ; en texte libre pour les numéros de photos et les prix. Une étape à la fois : n'enchaîne pas
 toutes les questions d'un coup, et ne passe pas à l'étape suivante sans réponse.
+
+Pages locales (planche des photos, coloris) : `client.mjs` les ouvre **une seule fois** dans le navigateur ; quand tu relances la
+commande, la page déjà ouverte se met à jour d'elle-même. Ne demande pas d'ouvrir un autre onglet, dis seulement « la page est à
+jour ». Pas d'autre page locale : la fiche elle-même se relit sur le site, en brouillon.
 
 Tous les appels passent par `client.mjs`, dans le dossier de cette skill (`node "<dossier de la skill>/client.mjs" …`). Travaille dans
 un dossier par produit (`Documents/fiches/<marque>-<modele>/`) : `fiche.json`, `photos.txt`, le référentiel et les rapports y restent.
@@ -28,7 +33,8 @@ Première fois de la séance : `node client.mjs verifier` (échec : voir `INSTAL
 
 ### 2. Existant : doublon et anciens modèles
 `node client.mjs doublons "<marque>" "<modele>" <famille>`.
-- **exact** : le produit existe déjà (même en brouillon). Arrête-toi, donne son nom et son lien d'édition, demande si c'est vraiment
+- **exact** : le produit existe déjà (même en brouillon). S'il s'agit du brouillon de ce dossier (`brouillon_id` de `fiche.json`),
+  c'est normal : on le corrige. Sinon, arrête-toi, donne son nom et son lien d'édition, demande si c'est vraiment
   un autre produit (autre millésime, autre version). Mettre à jour une fiche existante n'est pas prévu.
 - **precedent** : générations précédentes du même modèle (la Cure 2 et la Cure 3 pour une Cure 4). Note-les pour l'étape 7.
 - **proche** : signale-le en une ligne (accessoire du modèle, version voisine) et continue.
@@ -68,13 +74,13 @@ Méthode :
    son code s'il y en a un, et la photo qui le montre le mieux (vue du produit seul, de préférence).
 2. Écris `coloris.json` : `[{ "nom": "Lou", "code": "LOU", "image": "<adresse de la photo>" }]`, puis
    `node client.mjs coloris coloris.json <famille>` : le serveur relève les couleurs dominantes de chaque photo (fond écarté, ombres
-   regroupées), écrites dans `proposees`.
+   regroupées), écrites dans `proposees`. Aucune page ne s'ouvre encore (les pastilles ne sont pas choisies) : n'en parle pas.
 3. Choisis les couleurs de chaque pastille (`couleurs` : 3 pour une voile, 1 ou 2 sinon), en regardant aussi la photo toi-même :
    l'analyse donne les surfaces, toi tu juges ce qui caractérise la voile (une couleur d'accent peu étendue mais très visible
-   compte). Relance `node client.mjs coloris coloris.json <famille>` : la page montre, pour chaque coloris, la photo, les couleurs
-   relevées et la pastille telle qu'elle apparaîtra sur la fiche.
+   compte). Relance `node client.mjs coloris coloris.json <famille>` : la page s'ouvre alors, une seule fois, et montre pour chaque
+   coloris la photo, les couleurs relevées et la pastille telle qu'elle apparaîtra sur la fiche.
 4. Demande à l'utilisateur de valider les noms et les pastilles, ou de dire quoi changer (« la bande 2 plus foncée », « le nom est
-   Sky Blue ») ; corrige et rouvre la page jusqu'à son accord. Reporte ensuite les coloris validés dans `fiche.json`
+   Sky Blue ») ; corrige `coloris.json` et relance la commande (la page ouverte se met à jour) jusqu'à son accord. Reporte ensuite les coloris validés dans `fiche.json`
    (`declinaisons.coloris` : `nom` et `couleurs`).
 
 ### 5. Photos : lesquelles et dans quel ordre
@@ -110,32 +116,45 @@ S'il y a des **precedent** (étape 2) : présente-les (nom, en vente ou non, en 
 Recommande « encore en vente » si le produit a du stock, « plus en vente » sinon.
 
 ### 8. Contenus complémentaires
-Propose, en une question à choix multiples : vidéos trouvées (YouTube, Vimeo), documents PDF (manuel, certificat), FAQ, « Livré avec ». Demande s'il y a un **essai** ou une expérience de la boutique sur ce produit (vol, stage,
+- **Vidéos (toujours demander)** : montre celles que tu as trouvées (YouTube, Vimeo, chez le fabricant ou sur sa chaîne), puis
+  demande en texte libre : « Avez-vous d'autres liens de vidéos à mettre dans la galerie (YouTube ou Vimeo) ? ». Les vidéos
+  s'affichent dans la galerie de la fiche, à côté des photos.
+- Puis, en une question à choix multiples : documents PDF (manuel, certificat), FAQ, « Livré avec ». Documents : PDF seulement ;
+  si le fabricant ne donne qu'une page de téléchargement, demande le PDF à l'utilisateur ou dis qu'il s'ajoutera à la main. Demande s'il y a un **essai** ou une expérience de la boutique sur ce produit (vol, stage,
 élèves, portique) : si oui, quelques mots de l'utilisateur, que tu intègres à la description, en « nous ».
 
-### 9. Rédaction, référencement et aperçu
+### 9. Rédaction et référencement
 Rédige `fiche.json` (format ci-dessous) selon `persona-herve.md` et `guide-redaction.md`, y compris le **référencement** :
 `meta_titre` (60 caractères environ : famille, marque, modèle et ce qui le distingue), `meta_description` (150 caractères environ),
 `famille_affichee` si la famille du nom ne suffit pas (« Parapente biplace »). L'adresse de la fiche (rubrique + nom), le nom et le
 texte alternatif des photos, et les données structurées pour Google sont produits par le serveur et le thème : rien à écrire.
 **Grille technique : chaque ligne a une valeur dans chaque colonne de taille**, même quand elle est identique pour toutes (« 78 »
-cellules pour les cinq tailles) : sur mobile, chaque taille lit sa propre colonne. Puis
-`node client.mjs apercu fiche.json` : l'aperçu complet s'ouvre (vente, photos dans l'ordre, description avec ses images, grille,
-référencement). Demande à l'utilisateur de le relire et de dire ce qu'il veut changer ; corrige et régénère l'aperçu jusqu'à son accord.
+cellules pour les cinq tailles) : sur mobile, chaque taille lit sa propre colonne. Pas d'aperçu local : la relecture se fait sur
+le brouillon, à l'étape 11.
 
-### 10. Essai puis envoi
+### 10. Essai puis envoi du brouillon
 - `node client.mjs envoyer fiche.json --essai` : le serveur contrôle tout sans rien créer.
   - `erreurs` : corrige et recommence.
   - `nouveaux` (marque, taille ou coloris inconnus) : vérifie qu'ils n'existent pas sous un autre nom dans le référentiel ; ceux qui
     restent, fais-les valider.
   - `avertissements` : dis-les (photos petites, prix manquants, délai vide…).
   - `vente` et `remplace` du rapport : montre le tableau final (taille, prix, poids) et les anciens modèles reliés, pour un dernier oui.
-- `node client.mjs envoyer fiche.json` (avec `--confirmer-nouveaux` et `--forcer-doublon` seulement après accord explicite).
-  Les photos partent une par une ; après une erreur, corrige et relance : celles déjà reçues ne repartent pas.
+- Puis, sans attendre d'autre question, `node client.mjs envoyer fiche.json` (avec `--confirmer-nouveaux` et `--forcer-doublon`
+  seulement après accord explicite) : le brouillon est créé sur le site. Les photos partent une par une ; après une erreur, corrige
+  et relance : celles déjà reçues ne repartent pas.
 
-### 11. Fin
-Donne le lien d'édition et ce qui reste à faire dans l'administration : relire, faire écrire « L'avis d'Hervé » par Hervé, publier.
-Rappelle que les liens « Nouveau modèle » sur les anciennes fiches se poseront à la publication.
+### 11. Relecture sur le site : publier, corriger ou laisser en brouillon
+Donne les deux liens affichés par `envoyer` : **Aperçu** (la fiche telle que les clients la verront ; il faut être connecté au site
+dans le navigateur) et **Édition** (l'administration). Dis en quelques lignes ce que tu n'as pas pu remplir et pourquoi. Puis demande,
+par l'outil de questions :
+- **Faire des corrections** : l'utilisateur dit quoi changer ; corrige `fiche.json` (et `coloris.json`, `photos.txt` si besoin),
+  puis relance `node client.mjs envoyer fiche.json --essai` et `node client.mjs envoyer fiche.json` : le serveur **remplace** le
+  brouillon par la nouvelle version (nouveaux liens, à redonner). Préviens une fois : ce que l'utilisateur aurait modifié à la main
+  dans l'administration sur ce brouillon est perdu au remplacement ; après une retouche à la main, la suite se fait à la main.
+  Recommence l'étape 11 jusqu'à ce qu'il choisisse autre chose.
+- **Publier maintenant** : rappelle d'abord que « L'avis d'Hervé » est vide (Hervé l'écrira) et, s'il y en a, que les anciens modèles
+  recevront le lien « Nouveau modèle » ; puis, sur un oui explicite, `node client.mjs publier fiche.json` et donne le lien public.
+- **Laisser en brouillon** : pour la relecture d'Hervé ou des retouches à la main ; la publication se fera dans l'administration.
 
 ## Format de `fiche.json`
 
@@ -207,4 +226,4 @@ Rappelle que les liens « Nouveau modèle » sur les anciennes fiches se poseron
   partir de 1) à côté du texte de sa section : juste après un `<h3>`. Photos de galerie de 800 px au moins.
 - `tech.lignes` : `carac` = clé du référentiel, **une valeur par taille** dans l'ordre de `tech.tailles`, même identique (le serveur
   recopie une valeur seule dans toutes les colonnes, mais écris-les) ; `autre` + `libelle` pour une ligne sans clé. 12 tailles au plus. La ligne `poids` donne le poids d'expédition.
-- `id` dans une image ou un document : écrit par `client.mjs` après réception ; ne pas le modifier.
+- `id` dans une image ou un document, `brouillon_id` et `publie_id` : écrits par `client.mjs` ; ne pas les modifier.
