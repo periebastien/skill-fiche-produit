@@ -30,7 +30,10 @@ function reglages() {
   for (const k of ['site', 'compte', 'mot_de_passe_application']) if (!r[k]) sortir(`Réglage « ${k} » manquant dans ${REGLAGES}.`);
   return r;
 }
-function sortir(msg, code = 1) { console.error(msg); process.exit(code); }
+// Arrêt : code de sortie posé, puis fin sans process.exit (qui plante Node sous Windows après un fetch)
+class Arret extends Error {}
+function sortir(msg, code = 1) { console.error(msg); process.exitCode = code; throw new Arret(msg); }
+process.on('uncaughtException', e => { if (!(e instanceof Arret)) { console.error(e); process.exitCode = 1; } });
 
 async function api(methode, route, corps, requete = {}) {
   const r = reglages();
@@ -178,7 +181,7 @@ if (commande === 'verifier') {
   if (statut === 200 && donnees.id) { fiche.brouillon_id = donnees.id; writeFileSync(chemin, JSON.stringify(fiche, null, 1)); }
   console.log(JSON.stringify(donnees, null, 1));
   if (statut === 200 && donnees.id) console.log(`\nBrouillon ${donnees.id}${brouillon_id ? ` (remplace ${brouillon_id})` : ''}\nAperçu : ${donnees.apercu}\nÉdition : ${donnees.edition}`);
-  if (statut !== 200) process.exit(1);
+  if (statut !== 200) process.exitCode = 1;   // pas de process.exit après fetch : plantage de Node sous Windows
 } else if (commande === 'publier') {
   const chemin = positions[0];
   if (!chemin || !existsSync(chemin)) sortir('Usage : publier <fiche.json>');
