@@ -1,8 +1,8 @@
 # Guide de rédaction des fiches Plaine Altitude
 
-Plaine Altitude est une école de parapente et un magasin, dans les Hautes-Alpes. Hervé Gabet, le gérant, est moniteur : la boutique
-conseille, elle ne se contente pas de vendre. Les textes parlent à des pilotes, du débutant au compétiteur, avec précision et sans
-emphase publicitaire.
+Qui parle et comment : `persona-herve.md` (la boutique en « nous », avec le regard d'Hervé ; école, magasin et atelier à
+Saint-Omer, en Suisse normande). Ce guide-ci donne les règles et la structure. Les textes parlent à des pilotes, du débutant au
+compétiteur, avec précision et sans emphase publicitaire.
 
 ## Règles absolues
 
