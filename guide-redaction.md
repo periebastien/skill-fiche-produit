@@ -56,7 +56,11 @@ Vidéo de présentation : dans `videos` (lien YouTube ou Vimeo), pas dans la des
 - Recopie le tableau du fabricant dans la grille : une ligne par caractéristique, une valeur par taille, dans l'ordre des tailles.
 - Utilise les clés du référentiel (`caracteristiques`) ; une ligne sans clé passe en `autre` avec un libellé clair, unité comprise.
 - Valeur identique pour toutes les tailles : la répéter dans **chaque colonne** (sur mobile, chaque taille lit sa propre colonne).
-- Ce qui ne dépend pas de la taille (matériaux, nombre de cellules d'une sellette, certification) : `tech.autres`.
+- **Matériaux** (tissus, structure, suspentes) : jamais dans la grille ni dans `tech.autres` (demande de Bastien du 2026-11-26).
+  Ils vont en **dernière section de la description**, comme sur les fiches existantes : `<h3>Matériaux</h3>` puis une liste
+  `<ul><li><strong>Tissu d'extrados :</strong> Dominico 30D</li>…</ul>`.
+- `tech.autres` : à éviter (affiché en second tableau sous la grille). Seulement pour une donnée chiffrée qui ne dépend pas de la
+  taille et n'a pas sa place dans le texte (volume plié d'un sac, ISBN d'un livre) ; sinon, dans la description.
 
 ## Catégories et critères
 

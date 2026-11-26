@@ -204,7 +204,7 @@ par l'outil de questions :
       { "carac": "ptv_certifie", "valeurs": ["65-80", "75-90", "85-100"] },
       { "carac": "autre", "libelle": "Volume plié (L)", "valeurs": ["40"] }
     ],
-    "autres": [{ "libelle": "Tissu", "valeur": "Dokdo 20D" }]
+    "autres": []
   }
 }
 ```
@@ -226,4 +226,5 @@ par l'outil de questions :
   partir de 1) à côté du texte de sa section : juste après un `<h3>`. Photos de galerie de 800 px au moins.
 - `tech.lignes` : `carac` = clé du référentiel, **une valeur par taille** dans l'ordre de `tech.tailles`, même identique (le serveur
   recopie une valeur seule dans toutes les colonnes, mais écris-les) ; `autre` + `libelle` pour une ligne sans clé. 12 tailles au plus. La ligne `poids` donne le poids d'expédition.
+- `tech.autres` : vide en général ; les matériaux vont en dernière section de la description (`guide-redaction.md`).
 - `id` dans une image ou un document, `brouillon_id` et `publie_id` : écrits par `client.mjs` ; ne pas les modifier.
