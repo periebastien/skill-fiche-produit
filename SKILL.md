@@ -112,6 +112,8 @@ dans un dossier par produit (ex. `Documents/fiches/<marque>-<modele>/`) pour y g
   blanc). `coloris` : rattache la photo à son coloris (la déclinaison l'affiche). `role` : `galerie` (défaut), `description` (seulement
   dans la description), `les_deux`. `{{image:N}}` dans la description place l'image N (rang dans `images`, à partir de 1) à côté du
   texte de sa section : juste après un `<h3>`. 20 à 30 photos au plus, sans doublon de la même vue.
+  Photos de galerie de 800 px au moins (la fiche les affiche en grand) : cherche la plus grande version (paramètres de taille de
+  l'adresse, `srcset`, page « médias » ou « presse » du fabricant) ; le serveur avertit sous 800 px.
 - `tech.lignes` : `carac` = clé du référentiel (`caracteristiques`), une valeur par taille dans l'ordre de `tech.tailles` ; une seule
   valeur si elle est identique pour toutes les tailles ; `autre` + `libelle` pour une ligne sans clé. 12 tailles au plus.
 - `id` dans une image ou un document : écrit par `client.mjs` après réception ; ne pas le modifier.
