@@ -35,7 +35,7 @@ function reglages() {
   for (const k of ['compte', 'mot_de_passe_application']) if (!r[k]) sortir(`Réglage « ${k} » manquant dans ${REGLAGES}.`);
   return r;
 }
-const nomSite = () => { const s = reglages().site; return s === PRODUCTION ? `boutique en production (${s})` : `site d'ESSAI, pas la production (${s})`; };
+const nomSite = () => { const s = reglages().site; return s === PRODUCTION ? `la boutique en production (${s})` : `un site d'ESSAI, pas la production (${s})`; };
 // Arrêt : code de sortie posé, puis fin sans process.exit (qui plante Node sous Windows après un fetch)
 class Arret extends Error {}
 function sortir(msg, code = 1) { console.error(msg); process.exitCode = code; throw new Arret(msg); }
@@ -101,7 +101,7 @@ const positions = args.filter(a => !a.startsWith('--'));
 if (commande === 'verifier') {
   const { statut, donnees } = await api('GET', 'referentiel');
   if (statut !== 200) sortir(`Échec (${statut}) : ${donnees.message || JSON.stringify(donnees)}`);
-  console.log(`Connexion correcte à la ${nomSite()} : ${donnees.categories.length} catégories, ${donnees.marques.length} marques.`);
+  console.log(`Connexion correcte, brouillons envoyés sur ${nomSite()} : ${donnees.categories.length} catégories, ${donnees.marques.length} marques.`);
 } else if (commande === 'referentiel') {
   const famille = positions[0] || '';
   const fichier = positions[1] || `referentiel-${famille || 'general'}.json`;
@@ -186,7 +186,7 @@ if (commande === 'verifier') {
   writeFileSync(resolve(dirname(resolve(chemin)), essai ? 'rapport-essai.json' : 'rapport-envoi.json'), JSON.stringify(donnees, null, 1));
   if (statut === 200 && donnees.id) { fiche.brouillon_id = donnees.id; writeFileSync(chemin, JSON.stringify(fiche, null, 1)); }
   console.log(JSON.stringify(donnees, null, 1));
-  if (statut === 200 && donnees.id) console.log(`\nBrouillon ${donnees.id}${brouillon_id ? ` (remplace ${brouillon_id})` : ''} sur la ${nomSite()}\nAperçu : ${donnees.apercu}\nÉdition : ${donnees.edition}`);
+  if (statut === 200 && donnees.id) console.log(`\nBrouillon ${donnees.id}${brouillon_id ? ` (remplace ${brouillon_id})` : ''} sur ${nomSite()}\nAperçu : ${donnees.apercu}\nÉdition : ${donnees.edition}`);
   if (statut !== 200) process.exitCode = 1;   // pas de process.exit après fetch : plantage de Node sous Windows
 } else if (commande === 'publier') {
   const chemin = positions[0];
@@ -197,7 +197,7 @@ if (commande === 'verifier') {
   if (statut !== 200) sortir(`Publication refusée (${statut}) : ${donnees.message || ''}`);
   fiche.publie_id = fiche.brouillon_id; delete fiche.brouillon_id;
   writeFileSync(chemin, JSON.stringify(fiche, null, 1));
-  console.log(`Publiée sur la ${nomSite()} : ${donnees.lien}\nÉdition : ${donnees.edition}`);
+  console.log(`Publiée sur ${nomSite()} : ${donnees.lien}\nÉdition : ${donnees.edition}`);
 } else {
   sortir('Commandes : verifier, referentiel, doublons, planche, coloris, envoyer, publier (voir l\'en-tête de client.mjs).');
 }

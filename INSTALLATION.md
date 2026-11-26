@@ -33,4 +33,4 @@
    essais de Bastien sur le site de développement (`"site": "https://boutique.cogitoweb.net"`) : sans elle, c'est la production.
 
 7. **Vérifier** : demander à Claude « vérifie la connexion à la boutique » (il lance `node client.mjs verifier`). La réponse doit
-   dire « Connexion correcte à la boutique en production ».
+   dire « brouillons envoyés sur la boutique en production ».
