@@ -7,6 +7,8 @@
 //   node client.mjs doublons "<marque>" "<modele>" [famille]
 //   node client.mjs planche <photos.txt> [titre]           page numérotée des photos trouvées (une adresse ou un fichier par
 //                                                          ligne, puis une note facultative), ouverte dans le navigateur
+//   node client.mjs coloris <coloris.json> [famille]       analyse les photos des coloris (couleurs dominantes) et ouvre la
+//                                                          page de validation des pastilles (nom, couleurs, pastille)
 //   node client.mjs apercu <fiche.json>                    aperçu complet de la fiche (vente, photos, textes, grille), ouvert
 //   node client.mjs envoyer <fiche.json> [--essai] [--confirmer-nouveaux] [--forcer-doublon]
 //
@@ -54,9 +56,15 @@ h1{font-size:2rem;margin:.2rem 0}h2{margin-top:2rem;border-bottom:2px solid #20c
 figure{margin:0;background:#fff;border-radius:12px;overflow:hidden;position:relative;box-shadow:0 1px 3px #0002}
 figure b{position:absolute;top:6px;left:6px;background:#292728;color:#fff;border-radius:6px;padding:0 8px;font-size:1.1rem}
 figure img{width:100%;aspect-ratio:4/3;object-fit:contain;background:#eee;display:block}figcaption,figure small{display:block;padding:4px 8px;font-size:.85rem}
-img.desc{float:right;width:300px;margin:0 0 1rem 1.5rem;border-radius:12px}.description h3{clear:both}
+.pastille{width:48px;height:48px;border-radius:10px;border:1px solid #ccc;margin:0 auto 4px}.pastille.rond{border-radius:50%}.coloris{display:flex;gap:16px;margin:1rem 0}.coloris span{text-align:center;font-size:.9rem}img.desc{float:right;width:300px;margin:0 0 1rem 1.5rem;border-radius:12px}.description h3{clear:both}
 table{border-collapse:collapse;background:#fff}td,th{border:1px solid #ddd;padding:4px 10px;text-align:left}
 </style><h1>${esc(titre)}</h1>${corps}</html>`;
+}
+// Pastille telle que la fiche l'affichera : bandes horizontales (voile) ou couleur simple / bicolore (autres familles)
+function pastilleHtml(cs, voile) {
+  if (!cs || !cs.length) return '<div class="pastille vide">?</div>';
+  if (voile && cs.length > 1) return `<div class="pastille" style="background:linear-gradient(${cs.map((x, i) => `${x} ${(i * 100 / cs.length).toFixed(1)}% ${((i + 1) * 100 / cs.length).toFixed(1)}%`).join(',')})"></div>`;
+  return `<div class="pastille rond" style="background:${cs[1] ? `linear-gradient(135deg,${cs[0]} 50%,${cs[1]} 50%)` : cs[0]}"></div>`;
 }
 function ouvrir(fichier) {
   if (process.env.PA_FICHES_SANS_OUVRIR) return;   // essais automatiques : pas de fenêtre
@@ -97,6 +105,34 @@ if (commande === 'verifier') {
   writeFileSync(sortie, page(positions[1] || 'Photos trouvées', `<p>Notez les numéros à garder, dans l'ordre voulu (la première sera l'image principale), et celles à mettre dans la description.</p><div class="planche">${cartes}</div>`));
   ouvrir(sortie);
   console.log(`Planche de ${lignes.length} photos : ${sortie}`);
+} else if (commande === 'coloris') {
+  // coloris.json : [{ "nom": "Lou", "code": "LOU", "image": "<photo du coloris chez le fabricant>", "couleurs": ["#…"] }]
+  // Sans « couleurs » : le serveur analyse la photo et propose ses couleurs dominantes (« proposees »), écrites dans le fichier.
+  const chemin = positions[0];
+  if (!chemin || !existsSync(chemin)) sortir('Usage : coloris <coloris.json> [famille]');
+  const base = dirname(resolve(chemin));
+  const famille = positions[1] || 'parapente';
+  const liste = JSON.parse(readFileSync(chemin, 'utf8'));
+  for (const c of liste) {
+    if (c.proposees || !c.image) continue;
+    const corps = /^https?:/i.test(c.image) ? { url: c.image } : { donnees: readFileSync(resolve(base, c.image)).toString('base64') };
+    const { statut, donnees } = await api('POST', 'coloris', corps);
+    if (statut !== 200) { console.error(`Coloris ${c.nom} : analyse impossible (${donnees.message || statut})`); continue; }
+    c.proposees = donnees.couleurs;
+  }
+  writeFileSync(chemin, JSON.stringify(liste, null, 1));
+  const pastille = (cs, voile) => pastilleHtml(cs, voile);
+  const lignes = liste.map((c, i) => `<tr><td><b>${i + 1}</b></td><td>${c.image ? `<img src="${esc(source(c.image, base))}">` : ''}</td>
+    <td><b>${esc(c.nom)}</b>${c.code ? `<br><small>code ${esc(c.code)}</small>` : ''}</td>
+    <td>${(c.proposees || []).map(x => `<span class="ech" style="background:${esc(x.hex)}"></span>${esc(x.hex)} ${x.part} %`).join('<br>')}</td>
+    <td>${pastille(c.couleurs, famille === 'parapente')}<small>${esc((c.couleurs || []).join(' · ') || 'à choisir')}</small></td></tr>`).join('');
+  const sortie = resolve(base, 'coloris.html');
+  writeFileSync(sortie, page('Coloris à valider', `<style>td img{width:180px;aspect-ratio:4/3;object-fit:contain;background:#fff}.pastille{width:64px;height:64px;border-radius:12px;border:1px solid #ccc;margin-bottom:4px}.pastille.rond{border-radius:50%}.vide{display:grid;place-items:center}.ech{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:6px;vertical-align:middle;border:1px solid #ccc}td{vertical-align:middle}</style>
+    <p>Pour chaque coloris : la photo du fabricant, les couleurs relevées sur la photo (part de la surface), et la pastille proposée telle qu'elle apparaîtra sur la fiche${famille === 'parapente' ? ' (étiquette à bandes, couleur principale en haut)' : ''}. Vérifiez le nom et les couleurs.</p>
+    <table><tr><th></th><th>Photo</th><th>Nom</th><th>Couleurs relevées</th><th>Pastille</th></tr>${lignes}</table>`));
+  ouvrir(sortie);
+  console.log(`${liste.length} coloris : ${sortie}`);
+  for (const c of liste) console.log(`- ${c.nom} : relevées ${(c.proposees || []).slice(0, 5).map(x => x.hex + ' ' + x.part + '%').join(', ') || 'aucune'} ; retenues ${(c.couleurs || []).join(' ') || 'à choisir'}`);
 } else if (commande === 'apercu') {
   const chemin = positions[0];
   if (!chemin || !existsSync(chemin)) sortir('Usage : apercu <fiche.json>');
@@ -112,7 +148,8 @@ if (commande === 'verifier') {
   const prix = t => (v.prix_par_taille && v.prix_par_taille[t]) || v.prix || '<i>à saisir</i>';
   const dispo = { stock: 'En stock', commande: 'Sur commande' + (v.delai ? ' : ' + esc(v.delai) : ''), bientot: 'Bientôt disponible' + (v.date_arrivee ? ' (' + esc(v.date_arrivee) + ')' : ''), rupture: 'Ni stock ni commande' }[v.disponibilite || 'commande'];
   const vente = `<table><tr><th>Taille</th><th>Prix TTC</th></tr>${(tailles.length ? tailles : ['Prix unique']).map(t => `<tr><td>${esc(t)}</td><td>${prix(t)} €</td></tr>`).join('')}</table>
-    <p>Coloris : ${(dec.coloris || []).map(c => esc(c.nom || c)).join(', ') || 'aucun'} · ${dispo} · Tarif public conseillé : ${v.tarif_conseille === false ? 'non' : 'oui'} · Demande de devis : ${v.demande_devis === false ? 'non' : 'oui'}${v.remise_pack ? ' · Remise en pack : ' + esc(v.remise_pack) + ' %' : ''}</p>
+    <div class="coloris">${(dec.coloris || []).map(c => `<span>${pastilleHtml(c.couleurs, f.famille === 'parapente')}${esc(c.nom || c)}</span>`).join('')}</div>
+    <p>${dispo} · Tarif public conseillé : ${v.tarif_conseille === false ? 'non' : 'oui'} · Demande de devis : ${v.demande_devis === false ? 'non' : 'oui'}${v.remise_pack ? ' · Remise en pack : ' + esc(v.remise_pack) + ' %' : ''}</p>
     ${(v.stock || []).length ? '<p>Stock : ' + v.stock.map(s => `${esc(s.taille)} ${esc(s.coloris)} : ${esc(s.quantite)}`).join(', ') + '</p>' : ''}
     ${f.remplace && (f.remplace.produits || []).length ? `<p>Remplace les fiches ${esc(f.remplace.produits.join(', '))} (lien « Nouveau modèle » posé à la publication)${(f.remplace.ancien_modele || []).length ? ' ; passées « plus en vente » : ' + esc(f.remplace.ancien_modele.join(', ')) : ''}</p>` : ''}`;
   const t = f.tech || {};

@@ -44,13 +44,38 @@ homologations, pratiques, lignes, critères des sellettes, caractéristiques de 
 - Note ce que la source ne dit pas : tu le diras, tu ne l'inventes pas.
 - Prix public du fabricant en euros, s'il est affiché : note-le, il servira de proposition à l'étape 6.
 
-### 4. Ce qu'est le produit (questions groupées)
-Résume en quelques lignes ce que tu as compris, puis confirme par l'outil de questions :
-- **catégories** : ta proposition (sous-catégories du référentiel, en t'appuyant sur les fiches modèles) et une ou deux variantes ;
+### 4. Ce qu'est le produit : tes déductions, à valider
+Tout se **déduit de la source** (page, PDF, document fourni), puis se **propose** à l'utilisateur, qui valide ou corrige. Résume
+d'abord en quelques lignes ce que tu as compris, puis demande par l'outil de questions (ta proposition en premier, avec ce qui la
+justifie dans la source : « homologué EN D selon le tableau d'Ozone ») :
+- **catégories** : sous-catégories du référentiel déduites de la source (niveau EN, type de sellette, usage), en t'appuyant sur les
+  catégories des fiches modèles ; une ou deux variantes ; l'utilisateur peut en donner une autre ;
+- **pratiques** (cross, marche et vol, compétition…), **homologation**, **nombre de lignes**, et pour une sellette **protection,
+  container, homologation de la sellette** : déduits de la source, à valider ; ce que la source ne dit pas reste vide (et tu le dis) ;
+- **année de sortie** (badge « Nouveauté ») : propose **l'année en cours** (un produit ajouté est en général de l'année), ou celle de
+  la source si elle en donne une autre ; à valider ;
 - **tailles** vendues (toutes celles du fabricant, ou seulement certaines ?) ;
-- **coloris** : rapproche chaque coloris du fabricant d'un coloris existant de la boutique (« LOU » -> « Bleu ») ; montre la
-  correspondance et fais-la valider ; un coloris personnalisé (sur mesure) n'est pas décliné, sauf demande ;
 - **état** : neuve, en général ; démo ou occasion se font plutôt à la main.
+
+### 4 bis. Coloris : nom du fabricant et pastille
+Chaque coloris devient une valeur propre au produit, avec le **nom donné par le fabricant** (page, affiche, PDF, données de la page :
+« Lou », « Sky », « Fire », pas « Bleu ») et une pastille :
+- **voile** : une étiquette de **trois bandes** horizontales, aux trois couleurs principales de la voile (la couleur dominante en
+  haut, puis les deux suivantes) ;
+- **sellette, casque, sac, autres** : une pastille de couleur simple (une couleur, ou deux pour un bicolore) avec le nom.
+Méthode :
+1. Relève chaque coloris standard du fabricant (les coloris personnalisés sur mesure ne sont pas déclinés, sauf demande) : son nom,
+   son code s'il y en a un, et la photo qui le montre le mieux (vue du produit seul, de préférence).
+2. Écris `coloris.json` : `[{ "nom": "Lou", "code": "LOU", "image": "<adresse de la photo>" }]`, puis
+   `node client.mjs coloris coloris.json <famille>` : le serveur relève les couleurs dominantes de chaque photo (fond écarté, ombres
+   regroupées), écrites dans `proposees`.
+3. Choisis les couleurs de chaque pastille (`couleurs` : 3 pour une voile, 1 ou 2 sinon), en regardant aussi la photo toi-même :
+   l'analyse donne les surfaces, toi tu juges ce qui caractérise la voile (une couleur d'accent peu étendue mais très visible
+   compte). Relance `node client.mjs coloris coloris.json <famille>` : la page montre, pour chaque coloris, la photo, les couleurs
+   relevées et la pastille telle qu'elle apparaîtra sur la fiche.
+4. Demande à l'utilisateur de valider les noms et les pastilles, ou de dire quoi changer (« la bande 2 plus foncée », « le nom est
+   Sky Blue ») ; corrige et rouvre la page jusqu'à son accord. Reporte ensuite les coloris validés dans `fiche.json`
+   (`declinaisons.coloris` : `nom` et `couleurs`).
 
 ### 5. Photos : lesquelles et dans quel ordre
 1. Écris `photos.txt` : une photo par ligne, adresse de la **plus grande version**, puis une note courte (« coloris Bleu »,
@@ -85,12 +110,16 @@ S'il y a des **precedent** (étape 2) : présente-les (nom, en vente ou non, en 
 Recommande « encore en vente » si le produit a du stock, « plus en vente » sinon.
 
 ### 8. Contenus complémentaires
-Propose, en une question à choix multiples : vidéos trouvées (YouTube, Vimeo), documents PDF (manuel, certificat), FAQ, « Livré avec »,
-année de sortie (badge « Nouveauté »). Demande s'il y a un **essai** ou une expérience de la boutique sur ce produit (vol, stage,
+Propose, en une question à choix multiples : vidéos trouvées (YouTube, Vimeo), documents PDF (manuel, certificat), FAQ, « Livré avec ». Demande s'il y a un **essai** ou une expérience de la boutique sur ce produit (vol, stage,
 élèves, portique) : si oui, quelques mots de l'utilisateur, que tu intègres à la description, en « nous ».
 
-### 9. Rédaction et aperçu
-Rédige `fiche.json` (format ci-dessous) selon `persona-herve.md` et `guide-redaction.md`. Puis
+### 9. Rédaction, référencement et aperçu
+Rédige `fiche.json` (format ci-dessous) selon `persona-herve.md` et `guide-redaction.md`, y compris le **référencement** :
+`meta_titre` (60 caractères environ : famille, marque, modèle et ce qui le distingue), `meta_description` (150 caractères environ),
+`famille_affichee` si la famille du nom ne suffit pas (« Parapente biplace »). L'adresse de la fiche (rubrique + nom), le nom et le
+texte alternatif des photos, et les données structurées pour Google sont produits par le serveur et le thème : rien à écrire.
+**Grille technique : chaque ligne a une valeur dans chaque colonne de taille**, même quand elle est identique pour toutes (« 78 »
+cellules pour les cinq tailles) : sur mobile, chaque taille lit sa propre colonne. Puis
 `node client.mjs apercu fiche.json` : l'aperçu complet s'ouvre (vente, photos dans l'ordre, description avec ses images, grille,
 référencement). Demande à l'utilisateur de le relire et de dire ce qu'il veut changer ; corrige et régénère l'aperçu jusqu'à son accord.
 
@@ -130,7 +159,7 @@ Rappelle que les liens « Nouveau modèle » sur les anciennes fiches se poseron
   "documents": [{ "url": "https://…/manuel.pdf", "titre": "Manuel d'utilisation" }],
   "criteres": { "homologation": ["d"], "pratiques": ["cross", "competition"], "lignes": ["2"],
                 "protection": [], "container": [], "homologation_sellette": [] },
-  "declinaisons": { "tailles": ["XS", "S", "MS"], "coloris": [{ "nom": "Bleu" }, { "nom": "Bleu lagon", "couleur": "#1d8fb3" }], "etats": ["neuve"] },
+  "declinaisons": { "tailles": ["XS", "S", "MS"], "coloris": [{ "nom": "Lou", "couleurs": ["#0037df", "#e53503", "#e8b10c"] }], "etats": ["neuve"] },
   "vente": {
     "disponibilite": "commande",
     "delai": "Sur commande, environ 3 semaines",
@@ -151,7 +180,7 @@ Rappelle que les liens « Nouveau modèle » sur les anciennes fiches se poseron
   "tech": {
     "tailles": ["XS", "S", "MS"],
     "lignes": [
-      { "carac": "cellules", "valeurs": ["78"] },
+      { "carac": "cellules", "valeurs": ["78", "78", "78"] },
       { "carac": "poids", "valeurs": ["4,5", "4,7", "4,92"] },
       { "carac": "ptv_certifie", "valeurs": ["65-80", "75-90", "85-100"] },
       { "carac": "autre", "libelle": "Volume plié (L)", "valeurs": ["40"] }
@@ -165,8 +194,9 @@ Rappelle que les liens « Nouveau modèle » sur les anciennes fiches se poseron
 - `marque` : nom de la marque du référentiel (« GIN » est retrouvé pour « Gin Gliders »).
 - `criteres` : `slug` du référentiel ; `protection`, `container`, `homologation_sellette` pour les sellettes seulement. Vide si la
   source ne le dit pas.
-- `declinaisons` : le serveur crée toutes les combinaisons taille x coloris x état. Coloris existant : son nom exact du référentiel ;
-  nouveau : `nom` et, si possible, `couleur` (hexadécimal de la couleur dominante). Sans taille ni coloris : omettre (produit simple,
+- `declinaisons` : le serveur crée toutes les combinaisons taille x coloris x état. Coloris : `nom` du fabricant et `couleurs`
+  validées à l'étape 4 bis (1 à 3 codes hexadécimaux) ; le serveur crée le coloris propre au produit et sa pastille (image à bandes
+  pour une voile). `id` d'un coloris existant seulement si l'utilisateur le demande. Sans taille ni coloris : omettre (produit simple,
   `vente.prix` au lieu de `prix_par_taille`).
 - `vente.disponibilite` : `stock`, `commande`, `bientot` (avec `date_arrivee` AAAA-MM-JJ) ou `rupture`. `stock` : seulement les
   déclinaisons qui ont du stock (taille seule ou coloris seul acceptés). Prix TTC en euros.
@@ -175,6 +205,6 @@ Rappelle que les liens « Nouveau modèle » sur les anciennes fiches se poseron
 - `images` : dans l'ordre choisi à l'étape 5 ; la première est l'image principale. `coloris` : rattache la photo à son coloris.
   `role` : `galerie` (défaut), `description`, `les_deux`. `{{image:N}}` dans la description place l'image N (rang dans `images`, à
   partir de 1) à côté du texte de sa section : juste après un `<h3>`. Photos de galerie de 800 px au moins.
-- `tech.lignes` : `carac` = clé du référentiel, une valeur par taille dans l'ordre de `tech.tailles`, une seule si elle est identique
-  pour toutes ; `autre` + `libelle` pour une ligne sans clé. 12 tailles au plus. La ligne `poids` donne le poids d'expédition.
+- `tech.lignes` : `carac` = clé du référentiel, **une valeur par taille** dans l'ordre de `tech.tailles`, même identique (le serveur
+  recopie une valeur seule dans toutes les colonnes, mais écris-les) ; `autre` + `libelle` pour une ligne sans clé. 12 tailles au plus. La ligne `poids` donne le poids d'expédition.
 - `id` dans une image ou un document : écrit par `client.mjs` après réception ; ne pas le modifier.
