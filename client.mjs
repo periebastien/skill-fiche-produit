@@ -12,16 +12,20 @@
 //                                                          validation des pastilles dès que chaque coloris a ses « couleurs »
 //   node client.mjs envoyer <fiche.json> [--essai] [--confirmer-nouveaux] [--forcer-doublon]
 //   node client.mjs publier <fiche.json>                   publie le brouillon de fiche.json (après accord de l'utilisateur)
+//   node client.mjs modifier <fiche.json> [--essai] [--confirmer-nouveaux] [--garder=cle1,cle2]
+//                                                          modifie sur place la fiche déjà envoyée (brouillon ou publiée) :
+//                                                          seul ce qui change est écrit ; --essai liste les changements
 //
 // Pages locales (planche, coloris) : ouvertes une seule fois dans le navigateur, puis rechargées d'elles-mêmes quand la commande
 // est relancée (pas de nouvel onglet).
 // « envoyer » sans --essai envoie d'abord les images et documents pas encore reçus (une requête par fichier), note leur
 // identifiant dans fiche.json (une relance ne les renvoie pas), puis crée le brouillon et note son identifiant (« brouillon_id »).
-// Relancé après des corrections, il remplace ce brouillon par la nouvelle version. Le rapport du serveur est gardé dans
-// rapport-essai.json ou rapport-envoi.json, à côté de fiche.json. Code de sortie 1 si le serveur refuse.
+// Une fiche déjà envoyée se corrige ensuite par « modifier » (même produit, même adresse). Le rapport du serveur est gardé dans
+// rapport-essai.json, rapport-envoi.json ou rapport-modification.json, à côté de fiche.json. Code de sortie 1 si le serveur refuse.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, basename, resolve, dirname } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 
 const REGLAGES = join(homedir(), '.pa-fiches.json');
@@ -59,7 +63,44 @@ async function api(methode, route, corps, requete = {}) {
 }
 
 function esc(t) { return String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
-function source(adresse, base) { return /^https?:/i.test(adresse) ? adresse : 'file:///' + resolve(base, adresse).replace(/\\/g, '/'); }
+// Adresse d'une photo : http(s) telle quelle, fichier local en adresse file:// encodée (espaces, accents : dossier « LIVI 2 », 2026-11-27)
+function source(adresse, base) { return /^https?:/i.test(adresse) ? adresse : pathToFileURL(resolve(base, adresse)).href; }
+// Ligne de photos.txt : adresse (ou chemin, espaces permis) puis note facultative. Un chemin local est le plus long début de ligne
+// qui désigne un fichier existant ; une adresse s'arrête au premier espace.
+function lignePhoto(l, base) {
+  if (/^https?:/i.test(l)) { const [a, ...n] = l.split(/\s+/); return [a, n.join(' ')]; }
+  const morceaux = l.split(/(\s+)/);
+  for (let i = morceaux.length; i > 0; i -= 2) {
+    const chemin = morceaux.slice(0, i).join('');
+    if (existsSync(resolve(base, chemin))) return [chemin, morceaux.slice(i).join('').trim()];
+  }
+  return [l, ''];
+}
+// Contrôle du serveur après écriture (déclinaison sans coloris, attribut vide…) : affiché bien en vue
+function alerteControle(d) {
+  if (!d || !(d.controle || []).length) return;
+  console.log('\nATTENTION, contrôle après envoi : la fiche a des déclinaisons incomplètes, à signaler à l\'utilisateur avant toute publication :');
+  for (const x of d.controle) console.log(`- ${x}`);
+  process.exitCode = 1;
+}
+// Images et documents pas encore reçus : une requête par fichier (limite d'envoi du serveur), identifiant noté dans fiche.json
+async function envoyerFichiers(fiche, chemin) {
+  const commun = { marque: fiche.marque, modele: fiche.modele, nom: fiche.nom };
+  const envoyer = async (el, extra, etiquette) => {
+    if (el.id) return;
+    const corps = { ...commun, ...extra };
+    if (el.url) corps.url = el.url;
+    else if (el.fichier) corps.donnees = readFileSync(resolve(dirname(resolve(chemin)), el.fichier)).toString('base64');
+    else sortir(`${etiquette} : ni « url » ni « fichier ».`);
+    const { statut, donnees } = await api('POST', 'image', corps);
+    if (statut !== 200) sortir(`${etiquette} refusé (${statut}) : ${donnees.message || ''}\nCorriger fiche.json puis relancer (les fichiers déjà reçus ne sont pas renvoyés).`);
+    el.id = donnees.id;
+    writeFileSync(chemin, JSON.stringify(fiche, null, 1));
+    console.log(`${etiquette} reçu : ${donnees.fichier} (${donnees.largeur} x ${donnees.hauteur})`);
+  };
+  for (const [i, im] of (fiche.images || []).entries()) await envoyer(im, { coloris: im.coloris || '', rang: i + 1 }, `Image ${i + 1} (${im.url ? basename(new URL(im.url).pathname) : im.fichier})`);
+  for (const [i, doc] of (fiche.documents || []).entries()) await envoyer(doc, { type: 'document', titre: doc.titre || '' }, `Document ${i + 1} (${doc.titre || ''})`);
+}
 function page(titre, corps) {
   return `<!doctype html><html lang="fr"><meta charset="utf-8"><title>${esc(titre)}</title><style>
 body{font:16px/1.6 system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#292728;background:#f8fafb}
@@ -120,8 +161,8 @@ if (commande === 'verifier') {
   const base = dirname(resolve(liste));
   const lignes = readFileSync(liste, 'utf8').split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
   const cartes = lignes.map((l, i) => {
-    const [adresse, ...note] = l.split(/\s+/);
-    return `<figure><b>${i + 1}</b><img src="${esc(source(adresse, base))}" loading="lazy" onload="this.nextElementSibling.textContent=this.naturalWidth+' x '+this.naturalHeight+' px'+(Math.max(this.naturalWidth,this.naturalHeight)<800?' : petite, floue en grand':'')"><figcaption>chargement…</figcaption>${note.length ? `<small>${esc(note.join(' '))}</small>` : ''}</figure>`;
+    const [adresse, note] = lignePhoto(l, base);
+    return `<figure><b>${i + 1}</b><img src="${esc(source(adresse, base))}" loading="lazy" onload="this.nextElementSibling.textContent=this.naturalWidth+' x '+this.naturalHeight+' px'+(Math.max(this.naturalWidth,this.naturalHeight)<800?' : petite, floue en grand':'')" onerror="this.nextElementSibling.textContent='photo introuvable'"><figcaption>chargement…</figcaption>${note ? `<small>${esc(note)}</small>` : ''}</figure>`;
   }).join('');
   const sortie = resolve(base, 'planche.html');
   pageLocale(sortie, page(positions[1] || 'Photos trouvées', `<p>Notez les numéros à garder, dans l'ordre voulu (la première sera l'image principale), et celles à mettre dans la description.</p><div class="planche">${cartes}</div>`));
