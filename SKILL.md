@@ -34,9 +34,11 @@ brouillons : la boutique en production, sauf réglage d'essai ; dans ce cas, dis
 
 ### 2. Existant : doublon et anciens modèles
 `node client.mjs doublons "<marque>" "<modele>" <famille>`.
-- **exact** : le produit existe déjà (même en brouillon). S'il s'agit du brouillon de ce dossier (`brouillon_id` de `fiche.json`),
-  c'est normal : on le corrige. Sinon, arrête-toi, donne son nom et son lien d'édition, demande si c'est vraiment
-  un autre produit (autre millésime, autre version). Mettre à jour une fiche existante n'est pas prévu.
+- **exact** : le produit existe déjà (même en brouillon). S'il s'agit de la fiche de ce dossier (`brouillon_id` ou `publie_id` de
+  `fiche.json`), c'est normal : on la modifie (« Modifier une fiche déjà envoyée », plus bas). Sinon, arrête-toi, donne son nom et
+  son lien d'édition, demande si c'est vraiment un autre produit (autre millésime, autre version). Une fiche créée par la skill dans
+  un autre dossier se modifie depuis ce dossier-là (`Documents/fiches/<marque>-<modele>/`) ; une fiche faite à la main, dans
+  l'administration.
 - **precedent** : générations précédentes du même modèle (la Cure 2 et la Cure 3 pour une Cure 4). Note-les pour l'étape 7.
 - **proche** : signale-le en une ligne (accessoire du modèle, version voisine) et continue.
 
@@ -85,8 +87,8 @@ Méthode :
    (`declinaisons.coloris` : `nom` et `couleurs`).
 
 ### 5. Photos : lesquelles et dans quel ordre
-1. Écris `photos.txt` : une photo par ligne, adresse de la **plus grande version**, puis une note courte (« coloris Bleu »,
-   « en vol », « détail élévateurs »).
+1. Écris `photos.txt` : une photo par ligne, adresse de la **plus grande version** (ou chemin d'un fichier du poste, espaces
+   permis), puis une note courte (« coloris Bleu », « en vol », « détail élévateurs »).
 2. `node client.mjs planche photos.txt "<produit> : photos trouvées"` : la page numérotée s'ouvre dans le navigateur, avec la taille
    de chaque photo (les petites sont signalées).
 3. Propose une sélection : l'image principale (le produit entier, de préférence sur fond blanc, grande), une photo par coloris,
@@ -142,20 +144,43 @@ le brouillon, à l'étape 11.
   - `vente` et `remplace` du rapport : montre le tableau final (taille, prix, poids) et les anciens modèles reliés, pour un dernier oui.
 - Puis, sans attendre d'autre question, `node client.mjs envoyer fiche.json` (avec `--confirmer-nouveaux` et `--forcer-doublon`
   seulement après accord explicite) : le brouillon est créé sur le site. Les photos partent une par une ; après une erreur, corrige
-  et relance : celles déjà reçues ne repartent pas.
+  et relance : celles déjà reçues ne repartent pas. `envoyer` ne sert qu'à la création : une fois `brouillon_id` noté, tout
+  passe par `modifier`.
+- Si la sortie contient **« ATTENTION, contrôle après envoi »** (déclinaison sans coloris, attribut vide…) : dis-le tout de suite à
+  l'utilisateur, ne propose pas de publier ; corrige `fiche.json` et passe par `modifier`, ou laisse la correction à la main.
 
 ### 11. Relecture sur le site : publier, corriger ou laisser en brouillon
 Donne les deux liens affichés par `envoyer` : **Aperçu** (la fiche telle que les clients la verront ; il faut être connecté au site
 dans le navigateur) et **Édition** (l'administration). Dis en quelques lignes ce que tu n'as pas pu remplir et pourquoi. Puis demande,
 par l'outil de questions :
 - **Faire des corrections** : l'utilisateur dit quoi changer ; corrige `fiche.json` (et `coloris.json`, `photos.txt` si besoin),
-  puis relance `node client.mjs envoyer fiche.json --essai` et `node client.mjs envoyer fiche.json` : le serveur **remplace** le
-  brouillon par la nouvelle version (nouveaux liens, à redonner). Préviens une fois : ce que l'utilisateur aurait modifié à la main
-  dans l'administration sur ce brouillon est perdu au remplacement ; après une retouche à la main, la suite se fait à la main.
-  Recommence l'étape 11 jusqu'à ce qu'il choisisse autre chose.
+  puis suis « Modifier une fiche déjà envoyée » ci-dessous : le brouillon garde ses liens. Recommence l'étape 11 jusqu'à ce qu'il
+  choisisse autre chose.
 - **Publier maintenant** : rappelle d'abord que « L'avis d'Hervé » est vide (Hervé l'écrira) et, s'il y en a, que les anciens modèles
   recevront le lien « Nouveau modèle » ; puis, sur un oui explicite, `node client.mjs publier fiche.json` et donne le lien public.
 - **Laisser en brouillon** : pour la relecture d'Hervé ou des retouches à la main ; la publication se fera dans l'administration.
+
+## Modifier une fiche déjà envoyée (brouillon ou publiée)
+Pour une correction après relecture, ou plus tard sur une fiche en ligne (nouveau prix, nouveau coloris, ligne du tableau,
+photo…), depuis le dossier du produit (`fiche.json` avec `brouillon_id` ou `publie_id`). Le produit garde son identifiant, son
+adresse, son référencement et son statut : une fiche en ligne **reste en ligne**. Seul ce qui change dans `fiche.json` est écrit ;
+déclinaisons, photos, coloris et pastilles déjà en place sont repris ; l'avis d'Hervé et les champs que la skill ne gère pas ne sont
+jamais touchés.
+1. Corrige `fiche.json` selon la demande, rien d'autre. Nouveau coloris : étape 4 bis pour ses couleurs. Nouvelle photo : ajoute-la
+   dans `images` (sans `id`).
+2. `node client.mjs modifier fiche.json --essai` : la liste des changements prévus, rien n'est écrit. Montre-la à l'utilisateur
+   (libellé, avant, après), avec les déclinaisons ajoutées ou supprimées et les avertissements. **Rien ne s'écrit sans son oui.**
+   - « Gardé tel quel » : une valeur retouchée à la main dans l'administration depuis le dernier envoi, que `fiche.json` ne change
+     pas ; elle reste. Dis-le en une ligne.
+   - « la nouvelle valeur remplace une retouche faite à la main » : demande s'il faut vraiment l'écraser.
+   - Fiche créée avant le 2026-11-28 (message « Fiche créée avant le suivi des envois ») : toute différence avec le site est listée,
+     même celles qui viennent d'une retouche à la main. Fais trier : ce qui doit rester tel quel sur le site s'ajoute avec
+     `--garder=<clé>` (la clé entre crochets dans la liste, plusieurs séparées par des virgules ; `--garder=prix` garde les prix de
+     toutes les déclinaisons). Le stock n'est jamais touché sur ces fiches.
+3. Sur son accord, la même commande sans `--essai` (avec les mêmes `--garder`). Redonne les liens affichés. Si la sortie contient
+   « ATTENTION, contrôle après envoi », dis-le tout de suite.
+Supprimer une taille ou un coloris supprime ses déclinaisons : signale-le clairement avant d'écrire. Passer d'un produit simple à
+un produit à déclinaisons (ou l'inverse) se fait à la main.
 
 ## Format de `fiche.json`
 
