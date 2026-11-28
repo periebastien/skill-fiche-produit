@@ -202,33 +202,46 @@ if (commande === 'verifier') {
   if (!chemin || !existsSync(chemin)) sortir('Usage : envoyer <fiche.json> [--essai] [--confirmer-nouveaux] [--forcer-doublon]');
   const fiche = JSON.parse(readFileSync(chemin, 'utf8'));
   const essai = options.has('--essai');
-  if (!essai) {
-    // Fichiers d'abord : une requête par image ou document (limite d'envoi du serveur)
-    const commun = { marque: fiche.marque, modele: fiche.modele, nom: fiche.nom };
-    const envoyer = async (el, extra, etiquette) => {
-      if (el.id) return;
-      const corps = { ...commun, ...extra };
-      if (el.url) corps.url = el.url;
-      else if (el.fichier) corps.donnees = readFileSync(resolve(dirname(resolve(chemin)), el.fichier)).toString('base64');
-      else sortir(`${etiquette} : ni « url » ni « fichier ».`);
-      const { statut, donnees } = await api('POST', 'image', corps);
-      if (statut !== 200) sortir(`${etiquette} refusé (${statut}) : ${donnees.message || ''}\nCorriger fiche.json puis relancer (les fichiers déjà reçus ne sont pas renvoyés).`);
-      el.id = donnees.id;
-      writeFileSync(chemin, JSON.stringify(fiche, null, 1));
-      console.log(`${etiquette} reçu : ${donnees.fichier} (${donnees.largeur} x ${donnees.hauteur})`);
-    };
-    for (const [i, im] of (fiche.images || []).entries()) await envoyer(im, { coloris: im.coloris || '', rang: i + 1 }, `Image ${i + 1} (${im.url ? basename(new URL(im.url).pathname) : im.fichier})`);
-    for (const [i, doc] of (fiche.documents || []).entries()) await envoyer(doc, { type: 'document', titre: doc.titre || '' }, `Document ${i + 1} (${doc.titre || ''})`);
-  }
+  const deja = fiche.brouillon_id || fiche.publie_id;
+  if (deja) sortir(`Cette fiche est déjà envoyée (produit ${deja}) : les corrections passent par « modifier » (même produit, même adresse).`);
+  if (!essai) await envoyerFichiers(fiche, chemin);
   const { brouillon_id, publie_id, ...donneesFiche } = fiche;
-  if (publie_id && !brouillon_id) sortir(`Cette fiche est déjà publiée (produit ${publie_id}) : les corrections se font maintenant dans l'administration.`);
-  const corps = { ...donneesFiche, essai, confirmer_nouveaux: options.has('--confirmer-nouveaux'), forcer_doublon: options.has('--forcer-doublon'), ...(brouillon_id ? { remplacer: brouillon_id } : {}) };
+  const corps = { ...donneesFiche, essai, confirmer_nouveaux: options.has('--confirmer-nouveaux'), forcer_doublon: options.has('--forcer-doublon') };
   const { statut, donnees } = await api('POST', 'brouillon', corps);
   writeFileSync(resolve(dirname(resolve(chemin)), essai ? 'rapport-essai.json' : 'rapport-envoi.json'), JSON.stringify(donnees, null, 1));
   if (statut === 200 && donnees.id) { fiche.brouillon_id = donnees.id; writeFileSync(chemin, JSON.stringify(fiche, null, 1)); }
   console.log(JSON.stringify(donnees, null, 1));
-  if (statut === 200 && donnees.id) console.log(`\nBrouillon ${donnees.id}${brouillon_id ? ` (remplace ${brouillon_id})` : ''} sur ${nomSite()}\nAperçu : ${donnees.apercu}\nÉdition : ${donnees.edition}`);
+  if (statut === 200 && donnees.id) console.log(`\nBrouillon ${donnees.id} sur ${nomSite()}\nAperçu : ${donnees.apercu}\nÉdition : ${donnees.edition}`);
   if (statut !== 200) process.exitCode = 1;   // pas de process.exit après fetch : plantage de Node sous Windows
+  alerteControle(donnees);
+} else if (commande === 'modifier') {
+  const chemin = positions[0];
+  if (!chemin || !existsSync(chemin)) sortir('Usage : modifier <fiche.json> [--essai] [--confirmer-nouveaux] [--garder=cle1,cle2]');
+  const fiche = JSON.parse(readFileSync(chemin, 'utf8'));
+  const id = fiche.publie_id || fiche.brouillon_id;
+  if (!id) sortir("Pas de produit dans fiche.json (ni brouillon_id ni publie_id) : la créer d'abord avec « envoyer ».");
+  const essai = options.has('--essai');
+  // Fichiers d'abord, même pour l'essai : le serveur compare les photos par identifiant (une photo déjà reçue n'est pas renvoyée)
+  await envoyerFichiers(fiche, chemin);
+  const { brouillon_id, publie_id, ...donneesFiche } = fiche;
+  const garder = args.filter(o => o.startsWith('--garder=')).flatMap(o => o.slice(9).split(',')).map(x => x.trim()).filter(Boolean);
+  const { statut, donnees } = await api('POST', 'modifier', { ...donneesFiche, id, essai, garder, confirmer_nouveaux: options.has('--confirmer-nouveaux') });
+  writeFileSync(resolve(dirname(resolve(chemin)), essai ? 'rapport-essai.json' : 'rapport-modification.json'), JSON.stringify(donnees, null, 1));
+  if (statut !== 200) { console.log(JSON.stringify(donnees, null, 1)); process.exitCode = 1; }
+  else {
+    const ch = donnees.changements || [], dg = donnees.gardes || [], dc = donnees.declinaisons || {};
+    console.log(`${essai ? "ESSAI, rien n'est écrit. " : ''}Produit ${id} (${donnees.statut === 'publish' ? 'en ligne' : 'brouillon'}) sur ${nomSite()}`);
+    if (donnees.sans_historique) console.log("Fiche créée avant le suivi des envois : une différence peut venir d'une retouche faite à la main (la faire confirmer ; --garder=<clé> pour la garder).");
+    console.log(ch.length ? `\n${essai ? 'Changements prévus' : 'Changé'} (${ch.length}) :` : '\nAucun champ à changer.');
+    for (const c of ch) console.log(`- [${c.cle}] ${c.libelle} : ${c.avant}  ->  ${c.apres}`);
+    if ((dc.ajoutees || []).length) console.log(`\nDéclinaisons ${essai ? 'à ajouter' : 'ajoutées'} : ${dc.ajoutees.join(', ')}`);
+    if ((dc.supprimees || []).length) console.log(`Déclinaisons ${essai ? 'à supprimer' : 'supprimées'} : ${dc.supprimees.join(', ')}`);
+    if ((donnees.anciens_modeles || []).length) console.log(`Anciens modèles à relier : ${donnees.anciens_modeles.map(x => x.nom).join(', ')}`);
+    if (dg.length) { console.log('\nGardé tel quel sur le site :'); for (const g of dg) console.log(`- [${g.cle}] ${g.libelle} : ${g.sur_le_site} (${g.raison})`); }
+    for (const a of donnees.avertissements || []) console.log(`Avertissement : ${a}`);
+    if (!essai) console.log(`\n${donnees.lien ? `En ligne : ${donnees.lien}\n` : ''}Aperçu : ${donnees.apercu}\nÉdition : ${donnees.edition}`);
+    alerteControle(donnees);
+  }
 } else if (commande === 'publier') {
   const chemin = positions[0];
   if (!chemin || !existsSync(chemin)) sortir('Usage : publier <fiche.json>');
@@ -240,5 +253,5 @@ if (commande === 'verifier') {
   writeFileSync(chemin, JSON.stringify(fiche, null, 1));
   console.log(`Publiée sur ${nomSite()} : ${donnees.lien}\nÉdition : ${donnees.edition}`);
 } else {
-  sortir('Commandes : verifier, referentiel, doublons, planche, coloris, envoyer, publier (voir l\'en-tête de client.mjs).');
+  sortir('Commandes : verifier, referentiel, doublons, planche, coloris, envoyer, modifier, publier (voir l\'en-tête de client.mjs).');
 }
